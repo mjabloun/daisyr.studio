@@ -1,0 +1,28 @@
+Package: daisyr.studio
+Title: Shiny Studio for the daisyr Daisy Workflow
+Version: 0.0.0.9000
+Authors@R: 
+    person("Mohamed Jabloun", role = c("aut", "cre"), email = "daisyr@example.com")
+Description: Graphical interface for the daisyr package. Provides a Shiny
+    studio to set up Daisy projects, edit parameters, run
+    simulations, define objective functions, and run calibration,
+    sensitivity analysis, and space-filling design workflows.
+License: MIT + file LICENSE
+Depends: R (>= 4.1.0)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    bslib,
+    daisyr,
+    data.table,
+    DT,
+    ggplot2,
+    htmltools,
+    shiny,
+    shinyAce,
+    yaml
+Suggests:
+    pkgload,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
