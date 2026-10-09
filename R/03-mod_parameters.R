@@ -27,7 +27,8 @@ mod_parameters_ui <- function(id) {
         shiny::h6("Placeholders in templates"),
         shiny::p(class = "step-hint",
           "Names found as ", shiny::tags$code("{{...}}"), " in the template folder. Select a row and add it. Names ending in ",
-          shiny::tags$code("_plf"), " become a PLF (shape parameters plus a curve row). Change the curve family in PLF curves."
+          shiny::tags$code("_plf"), " become a PLF (shape parameters plus a curve row). Names ending in ",
+          shiny::tags$code("_PARTIT"), " become a shoot-partitioning block (Leaf and Stem together)."
         ),
         shiny::actionButton(ns("add_selected"), "Add selected", class = "btn-sm btn-outline-primary mb-2"),
         DT::DTOutput(ns("placeholders"))
@@ -64,6 +65,23 @@ mod_parameters_ui <- function(id) {
             ),
             DT::DTOutput(ns("curves"))
           )
+        ),
+        shiny::conditionalPanel(
+          condition = "output.has_partit",
+          ns = ns,
+          bslib::card(
+            fill = FALSE,
+            bslib::card_header("Partit"),
+            shiny::p(class = "step-hint",
+              "Filled when you add a ", shiny::tags$code("_PARTIT"),
+              " placeholder. One row writes both the Leaf and Stem tables. Select a row and click Remove partit to delete it."
+            ),
+            shiny::div(
+              class = "d-flex gap-2 flex-wrap mb-2",
+              shiny::actionButton(ns("remove_partit"), "Remove partit", class = "btn-sm btn-outline-danger")
+            ),
+            DT::DTOutput(ns("partit"))
+          )
         )
       )
     ),
@@ -85,14 +103,18 @@ mod_parameters_server <- function(id, project) {
   shiny::moduleServer(id, function(input, output, session) {
     params_df <- shiny::reactiveVal(params_to_df(NULL))
     curves_df <- shiny::reactiveVal(curves_to_df(NULL))
+    partit_df <- shiny::reactiveVal(partit_to_df(NULL))
     suppress_yaml <- shiny::reactiveVal(FALSE)
 
     output$has_plf <- shiny::reactive(nrow(curves_df()) > 0)
     shiny::outputOptions(output, "has_plf", suspendWhenHidden = FALSE)
+    output$has_partit <- shiny::reactive(nrow(partit_df()) > 0)
+    shiny::outputOptions(output, "has_partit", suspendWhenHidden = FALSE)
 
     sync_from_param_config <- function() {
       params_df(params_to_df(project$config))
       curves_df(curves_to_df(project$config))
+      partit_df(partit_to_df(project$config))
       if (nzchar(project$config_yaml)) {
         suppress_yaml(TRUE)
         update_yaml_editor(session, "yaml", project$config_yaml)
@@ -109,6 +131,7 @@ mod_parameters_server <- function(id, project) {
     shiny::observeEvent(project$session_reset, {
       params_df(params_to_df(NULL))
       curves_df(curves_to_df(NULL))
+      partit_df(partit_to_df(NULL))
       update_yaml_editor(session, "yaml", "")
       shiny::updateTextInput(session, "path", value = "")
     }, ignoreInit = TRUE)
@@ -126,6 +149,24 @@ mod_parameters_server <- function(id, project) {
         selection = "single",
         options = list(dom = "t", scrollX = TRUE, paging = FALSE)
       )
+    })
+
+    output$partit <- DT::renderDT({
+      DT::datatable(
+        partit_df(),
+        editable = TRUE,
+        rownames = FALSE,
+        selection = "single",
+        options = list(dom = "t", scrollX = TRUE, paging = FALSE)
+      )
+    })
+
+    shiny::observeEvent(input$partit_cell_edit, {
+      info <- input$partit_cell_edit
+      df <- partit_df()
+      j <- info$col + 1L
+      df[info$row, j] <- DT::coerceValue(info$value, df[info$row, j])
+      partit_df(df)
     })
 
     output$curves <- DT::renderDT({
@@ -266,6 +307,40 @@ mod_parameters_server <- function(id, project) {
         shiny::showNotification(paste("Added PLF", curve_nm, "(logistic). Change the family in PLF curves if needed."), type = "message")
         return()
       }
+      if (is_partit_placeholder(ph)) {
+        partit_nm <- partit_name_from_placeholder(ph)
+        if (!nzchar(partit_nm)) {
+          shiny::showNotification("Placeholder is only _PARTIT; give it a name before the suffix.", type = "warning")
+          return()
+        }
+        pdf <- partit_df()
+        if (partit_nm %in% pdf$name || ph %in% pdf$placeholder) {
+          shiny::showNotification("That Partit block is already in the tables.", type = "warning")
+          return()
+        }
+        shape <- partit_shape_names_studio(partit_nm)
+        pr <- empty_partit_row(partit_nm, paste(shape, collapse = ", "))
+        pr$placeholder <- ph
+        pr$from_file <- row$file
+        pr$to_file <- row$file
+        partit_df(rbind(pdf, pr))
+        specs <- partit_shape_specs()
+        df <- params_df()
+        for (i in seq_len(nrow(specs))) {
+          if (shape[i] %in% df$name) next
+          add <- empty_param_row(shape[i])
+          add$default <- specs$default[i]
+          add$min <- specs$min[i]
+          add$max <- specs$max[i]
+          add$from_file <- ""
+          add$to_file <- ""
+          add$role <- "curve_input"
+          df <- rbind(df, add)
+        }
+        params_df(df)
+        shiny::showNotification(paste("Added Partit", partit_nm), type = "message")
+        return()
+      }
       df <- params_df()
       if (ph %in% df$name) {
         shiny::showNotification("That name is already in the table.", type = "warning")
@@ -302,8 +377,22 @@ mod_parameters_server <- function(id, project) {
         params_df(replace_param_names(params_df(), old_params, character()))
     })
 
+    shiny::observeEvent(input$remove_partit, {
+      df <- partit_df()
+      sel <- input$partit_rows_selected
+      if (!nrow(df) || !length(sel)) {
+        shiny::showNotification("Select a Partit row to remove.", type = "warning")
+        return()
+      }
+      i <- as.integer(sel)
+      old_params <- split_csv(df[i, "params"])
+      partit_df(df[-i, , drop = FALSE])
+      if (length(old_params))
+        params_df(replace_param_names(params_df(), old_params, character()))
+    })
+
     yaml_from_tables <- function() {
-      tables_to_param_config_yaml(params_df(), curves_df())
+      tables_to_param_config_yaml(params_df(), curves_df(), partit_df())
     }
 
     shiny::observeEvent(input$tables_to_yaml, {

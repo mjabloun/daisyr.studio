@@ -7,6 +7,9 @@
   converting through YAML).
 * Session files live in `~/daisyr-studio-sessions` (user home) and are listed
   even before a project folder is set; project-folder copies are still found.
+* A template placeholder ending in `_PARTIT` (for example `{{Shoot_PARTIT}}`)
+  adds a Partit row. That row writes both the Leaf and Stem tables from four
+  shape parameters, and can sit in the same `parameters.yaml` as PLF curves.
 * Parameter YAML is `parameters.yaml`. The R API uses `param_config`
   (`read_param_config()`, class `daisyr_param_config`). Older `registry.yaml`
   files still load. Parameter tables include an `expression` column for derived

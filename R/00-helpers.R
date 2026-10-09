@@ -679,6 +679,59 @@ plf_shape_names <- function(curve_name, curve = "logistic") {
   paste0(curve_name, "_", plf_shape_args(curve))
 }
 
+# Keep in step with daisyr:::.partit_shape_defaults().
+partit_shape_specs <- function() {
+  data.frame(
+    suffix = c("sorg_steepness", "sorg_centre", "leaf_steepness", "leaf_centre"),
+    default = c(10, 1.2, 10, 0.6),
+    min = c(3, 0.8, 3, 0.3),
+    max = c(25, 1.8, 25, 1.0),
+    stringsAsFactors = FALSE
+  )
+}
+
+is_partit_placeholder <- function(name) {
+  grepl("_partit$", as.character(name), ignore.case = TRUE)
+}
+
+partit_name_from_placeholder <- function(name) {
+  sub("_partit$", "", as.character(name), ignore.case = TRUE)
+}
+
+partit_shape_names_studio <- function(name) {
+  paste0(name, "_", partit_shape_specs()$suffix)
+}
+
+empty_partit_row <- function(name = "", params = "") {
+  data.frame(
+    name = as.character(name), from_file = "", to_file = "",
+    placeholder = if (nzchar(name)) paste0(name, "_PARTIT") else "",
+    x_values = paste(format(seq(0, 2, by = 0.1), nsmall = 1, trim = TRUE), collapse = ", "),
+    params = as.character(params), stringsAsFactors = FALSE
+  )
+}
+
+partit_to_df <- function(config) {
+  empty <- data.frame(
+    name = character(), from_file = character(), to_file = character(),
+    placeholder = character(), x_values = character(), params = character(),
+    stringsAsFactors = FALSE
+  )
+  pts <- if (is.null(config)) list() else config$partit
+  if (is.null(pts) || length(pts) == 0L) return(empty)
+  do.call(rbind, lapply(pts, function(pt) {
+    data.frame(
+      name = pt$name,
+      from_file = pt$from_file,
+      to_file = pt$to_file,
+      placeholder = pt$placeholder,
+      x_values = paste(pt$x_values, collapse = ", "),
+      params = paste(pt$params, collapse = ", "),
+      stringsAsFactors = FALSE
+    )
+  }))
+}
+
 replace_param_names <- function(params_df, old_names, new_names) {
   df <- params_df
   drop <- setdiff(old_names, new_names)
@@ -717,7 +770,7 @@ split_csv <- function(x) {
   parts[nzchar(parts)]
 }
 
-tables_to_param_config_yaml <- function(params_df, curves_df) {
+tables_to_param_config_yaml <- function(params_df, curves_df, partit_df = NULL) {
   if (is.null(params_df) || nrow(params_df) == 0L)
     stop("Add at least one parameter before saving.")
   parameters <- lapply(seq_len(nrow(params_df)), function(i) {
@@ -756,6 +809,19 @@ tables_to_param_config_yaml <- function(params_df, curves_df) {
         placeholder = as.character(row$placeholder),
         x_values = as.numeric(split_csv(row$x_values)),
         curve = as.character(row$curve),
+        params = split_csv(row$params)
+      )
+    })
+  }
+  if (!is.null(partit_df) && nrow(partit_df) > 0L) {
+    doc$partit <- lapply(seq_len(nrow(partit_df)), function(i) {
+      row <- partit_df[i, ]
+      list(
+        name = as.character(row$name),
+        from_file = as.character(row$from_file),
+        to_file = as.character(row$to_file),
+        placeholder = as.character(row$placeholder),
+        x_values = as.numeric(split_csv(row$x_values)),
         params = split_csv(row$params)
       )
     })
