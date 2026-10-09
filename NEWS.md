@@ -9,4 +9,7 @@
   even before a project folder is set; project-folder copies are still found.
 * Parameter YAML is `parameters.yaml`. The R API uses `param_config`
   (`read_param_config()`, class `daisyr_param_config`). Older `registry.yaml`
-  files still load.
+  files still load. Parameter tables include an `expression` column for derived
+  names (e.g. `1 - silt - sand`). Calibrate, sensitivity, and design use free
+  names only; derived values are computed and shown as `derived` in the
+  calibration best-parameter table.

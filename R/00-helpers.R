@@ -505,7 +505,7 @@ objective_fit_series <- function(spec, project) {
         ggplot2::geom_point(data = obs_rows, size = 2.2, na.rm = TRUE) +
         ggplot2::scale_colour_manual(values = c(Observed = "#c0392b", Simulated = "#1b5e40")) +
         ggplot2::labs(title = key, x = xcol, y = lab, colour = NULL) +
-        ggplot2::theme_minimal(base_size = 13) +
+        ggplot2::theme_bw(base_size = 13) +
         ggplot2::theme(legend.position = "bottom")
     }
   }
@@ -609,13 +609,19 @@ apply_param_config <- function(project, yaml_text, path = NULL) {
   project$config <- config
   project$config_tick <- (project$config_tick %||% 0L) + 1L
   project$config_ok <- TRUE
+  n_free <- length(param_config_names(config))
+  n_derived <- sum(config$parameters$role == "derived")
   project$config_msg <- sprintf(
-    "Valid \u2014 %d name(s): %s",
-    nrow(config$parameters),
+    "Valid \u2014 %d free name(s)%s: %s",
+    n_free,
+    if (n_derived) sprintf(", %d derived", n_derived) else "",
     paste(config$parameters$name, collapse = ", ")
   )
   if (!is.null(path) && nzchar(path)) project$config_path <- path
-  log_append(project, "Parameters validated (", nrow(config$parameters), " names).")
+  log_append(
+    project, "Parameters validated (", n_free, " free",
+    if (n_derived) paste0(", ", n_derived, " derived") else "", ")."
+  )
   config
 }
 
@@ -623,13 +629,16 @@ params_to_df <- function(config) {
   if (is.null(config)) {
     return(empty_param_row()[0, , drop = FALSE])
   }
-  as.data.frame(config$parameters[, c("name", "default", "min", "max", "from_file", "to_file", "role")],
-                stringsAsFactors = FALSE)
+  df <- as.data.frame(config$parameters[, c("name", "expression", "default", "min", "max",
+                                            "from_file", "to_file", "role")],
+                      stringsAsFactors = FALSE)
+  df$expression[is.na(df$expression)] <- ""
+  df
 }
 
 empty_param_row <- function(name = "") {
   data.frame(
-    name = as.character(name), default = 0, min = 0, max = 1,
+    name = as.character(name), expression = "", default = 0, min = 0, max = 1,
     from_file = "", to_file = "", role = "direct",
     stringsAsFactors = FALSE
   )
@@ -713,12 +722,21 @@ tables_to_param_config_yaml <- function(params_df, curves_df) {
     stop("Add at least one parameter before saving.")
   parameters <- lapply(seq_len(nrow(params_df)), function(i) {
     row <- params_df[i, ]
-    p <- list(
-      name = as.character(row$name),
-      default = as.numeric(row$default),
-      min = as.numeric(row$min),
-      max = as.numeric(row$max)
-    )
+    expr <- if ("expression" %in% names(row)) as.character(row$expression) else ""
+    if (length(expr) != 1L || is.na(expr)) expr <- ""
+    expr <- trimws(expr)
+    if (nzchar(expr)) {
+      p <- list(name = as.character(row$name), expression = expr)
+      if (!is.null(row$min) && !is.na(as.numeric(row$min))) p$min <- as.numeric(row$min)
+      if (!is.null(row$max) && !is.na(as.numeric(row$max))) p$max <- as.numeric(row$max)
+    } else {
+      p <- list(
+        name = as.character(row$name),
+        default = as.numeric(row$default),
+        min = as.numeric(row$min),
+        max = as.numeric(row$max)
+      )
+    }
     ff <- as.character(row$from_file)
     tf <- as.character(row$to_file)
     if (length(ff) && !is.na(ff) && nzchar(ff)) {
@@ -992,7 +1010,7 @@ plot_series <- function(dt, y_cols, x_col = "Date", geom = "line",
       y = y_axis_label(dt, y_cols),
       colour = NULL, fill = NULL
     ) +
-    ggplot2::theme_minimal(base_size = 13) +
+    ggplot2::theme_bw(base_size = 13) +
     ggplot2::theme(legend.position = "bottom")
 }
 

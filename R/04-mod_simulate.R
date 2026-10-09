@@ -9,7 +9,8 @@ mod_simulate_ui <- function(id) {
         bslib::card_header("Run Daisy"),
         shiny::p(class = "step-hint",
           "Runs the setup file from the Project page as-is. Tick ",
-          shiny::strong("Use parameter defaults"), " to render the template with current parameter values first. Open ",
+          shiny::strong("Use parameter defaults"),
+          " to render templates first (free defaults plus any computed expressions). Open ",
           shiny::strong("Plots"), " afterwards to read and chart ",
           shiny::tags$code(".dlf"), " output."
         ),
@@ -71,10 +72,7 @@ mod_simulate_server <- function(id, project) {
             values <- NULL
             shiny::withProgress(message = "Running Daisy", value = 0.2, {
               if (use_tmpl) {
-                values <- stats::setNames(
-                  project$config$parameters$default,
-                  project$config$parameters$name
-                )
+                values <- param_config_default_values(project$config)
                 shiny::incProgress(0.4, detail = "Executable")
               }
               run_project_daisy(project, values = values, show_log = TRUE)

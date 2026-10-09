@@ -7,7 +7,9 @@ mod_parameters_ui <- function(id) {
         fill = FALSE,
         bslib::card_header("Parameters file"),
         shiny::p(class = "step-hint",
-          "Lists every free parameter Daisy will vary. Load an existing ",
+          "Placeholders Daisy will substitute, including derived names that use an ",
+          shiny::tags$code("expression"),
+          " (e.g. clay = 1 - silt - sand). Load an existing ",
           shiny::tags$code("parameters.yaml"),
           " (older ", shiny::tags$code("registry.yaml"),
           " files still work), or build the tables on the right and save."
@@ -35,7 +37,11 @@ mod_parameters_ui <- function(id) {
           fill = FALSE,
           bslib::card_header("Parameters"),
           shiny::p(class = "step-hint",
-            "One row per free parameter. Double-click a cell to edit. Add names only from Placeholders in templates. Select a row and click Remove parameter to delete it."
+            "One row per placeholder. Free names need default/min/max. For a closing ",
+            "constraint, fill ", shiny::tags$code("expression"),
+            " instead (e.g. ", shiny::tags$code("1 - Ap_silt - Ap_sand"),
+            ") and leave default empty. Optional min/max on that row are validity bounds. ",
+            "Double-click a cell to edit."
           ),
           shiny::div(
             class = "d-flex gap-2 flex-wrap mb-2",
@@ -108,9 +114,14 @@ mod_parameters_server <- function(id, project) {
     }, ignoreInit = TRUE)
 
     output$params <- DT::renderDT({
+      df <- params_df()
+      role_col <- match("role", names(df))
       DT::datatable(
-        params_df(),
-        editable = TRUE,
+        df,
+        editable = list(
+          target = "cell",
+          disable = list(columns = if (is.na(role_col)) integer() else role_col - 1L)
+        ),
         rownames = FALSE,
         selection = "single",
         options = list(dom = "t", scrollX = TRUE, paging = FALSE)
@@ -138,6 +149,13 @@ mod_parameters_server <- function(id, project) {
       df <- params_df()
       j <- info$col + 1L
       df[info$row, j] <- DT::coerceValue(info$value, df[info$row, j])
+      if (identical(names(df)[j], "expression") || identical(names(df)[j], "role")) {
+        expr <- if ("expression" %in% names(df))
+          trimws(as.character(df$expression[info$row])) else ""
+        if (length(expr) != 1L || is.na(expr)) expr <- ""
+        if ("role" %in% names(df))
+          df$role[info$row] <- if (nzchar(expr)) "derived" else "direct"
+      }
       params_df(df)
     })
 

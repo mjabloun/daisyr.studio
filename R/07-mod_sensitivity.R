@@ -5,7 +5,7 @@ mod_sensitivity_ui <- function(id) {
     bslib::card(
       bslib::card_header("Sensitivity test"),
       shiny::p(class = "step-hint",
-        "Choose a test, then Daisy is run for every row of that design. Response is the saved objective score, or the mean of one output column."
+        "Choose a test, then Daisy is run for every row of that design (free parameters only; expression names are computed). Response is the saved objective score, or the mean of one output column."
       ),
       shiny::radioButtons(
         ns("method"),

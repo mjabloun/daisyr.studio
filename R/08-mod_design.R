@@ -5,7 +5,7 @@ mod_design_ui <- function(id) {
     bslib::card(
       bslib::card_header("Space-filling design"),
       shiny::p(class = "step-hint",
-        "Draw a training design over parameter bounds, run Daisy for every row, optionally score with the saved objective, and fit a Kriging metamodel."
+        "Draw a training design over free parameter bounds (derived expression names are filled when Daisy runs), run Daisy for every row, optionally score with the saved objective, and fit a Kriging metamodel."
       ),
       shiny::numericInput(ns("n"), "Design points (n)", value = 10, min = 2, step = 1),
       shiny::selectInput(ns("method"), "Method", c("lhs", "sobol", "dice_lhs")),

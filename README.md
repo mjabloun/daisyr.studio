@@ -20,5 +20,6 @@ Project-folder copies are still found if you point the app at a folder.
 
 ## Status
 
-Pages for project, setup (YAML and raw `.dai`), parameters, simulate,
+Pages for project, setup (YAML and raw `.dai`), parameters (including
+derived `expression` names such as `clay = 1 - silt - sand`), simulate,
 plots, observe, calibrate, sensitivity, and design.

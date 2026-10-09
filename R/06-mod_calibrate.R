@@ -11,7 +11,9 @@ mod_calibrate_ui <- function(id) {
           bslib::card(
             bslib::card_header("DEoptim calibration"),
             shiny::p(class = "step-hint",
-              "Fits the selected parameters against the saved objective. Other parameters stay at their defaults. Each candidate is one Daisy run, so keep ",
+              "Fits the selected free parameters against the saved objective. Names with an ",
+              shiny::tags$code("expression"),
+              " are computed, not fitted. Other free parameters stay at their defaults. Each candidate is one Daisy run, so keep ",
               shiny::tags$code("itermax"), " and ", shiny::tags$code("NP"),
               " small until a trial finishes cleanly."
             ),
@@ -23,10 +25,10 @@ mod_calibrate_ui <- function(id) {
               "Parameters to fit",
               choices = character(),
               multiple = TRUE,
-              options = list(dropdownParent = "body", placeholder = "All parameters if empty")
+              options = list(dropdownParent = "body", placeholder = "All free parameters if empty")
             ),
             shiny::p(class = "step-hint",
-              "Filled from Sensitivity when you use selected indices. A PLF curve is always fit as a unit. Leave empty to fit every parameter."
+              "Filled from Sensitivity when you use selected indices. A PLF curve is always fit as a unit. Derived expression names are omitted. Leave empty to fit every free parameter."
             ),
             shiny::actionButton(ns("go"), "Start calibration", class = "btn-primary")
           ),
@@ -260,10 +262,17 @@ mod_calibrate_server <- function(id, project) {
       fit <- project$cal_result
       shiny::req(fit)
       fitted <- fit$fitted_names %||% names(fit$best_params)
+      roles <- character()
+      if (!is.null(project$config))
+        roles <- stats::setNames(as.character(project$config$parameters$role),
+                                 project$config$parameters$name)
+      nms <- names(fit$best_params)
+      status <- ifelse(nms %in% fitted, "fitted",
+                       ifelse(roles[nms] %in% "derived", "derived", "frozen"))
       df <- data.frame(
-        parameter = names(fit$best_params),
+        parameter = nms,
         value = as.numeric(fit$best_params),
-        status = ifelse(names(fit$best_params) %in% fitted, "fitted", "frozen"),
+        status = as.character(status),
         stringsAsFactors = FALSE
       )
       DT::datatable(df, rownames = FALSE,
@@ -278,7 +287,8 @@ mod_calibrate_server <- function(id, project) {
       nfit <- length(fit$fitted_names %||% names(fit$best_params))
       nall <- length(fit$best_params)
       if (nfit < nall)
-        lines <- paste0(lines, "\nfitted ", nfit, " of ", nall, " parameters (rest frozen at default)")
+        lines <- paste0(lines, "\nfitted ", nfit, " of ", nall,
+                        " values (rest frozen at default or computed from an expression)")
       chk <- project$cal_check_score
       if (!is.null(chk) && length(chk) && is.finite(chk[[1]]))
         lines <- paste0(lines, "\nthis .dlf = ", signif(chk[[1]], 6),
